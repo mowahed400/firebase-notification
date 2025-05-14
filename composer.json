@@ -16,7 +16,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Waheed\\FirebaseNotification\\": "src/"
+            "Mowahed\\FirebaseNotification\\": "src/"
         }
     },
     "extra": {
