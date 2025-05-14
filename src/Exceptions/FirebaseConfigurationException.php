@@ -1,6 +1,6 @@
 <?php
 
-namespace Waheed\FirebaseNotification\Exceptions;
+namespace Mowahed\FirebaseNotification\Exceptions;
 
 use Exception;
 

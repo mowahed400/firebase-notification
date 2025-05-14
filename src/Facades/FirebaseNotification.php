@@ -1,6 +1,6 @@
 <?php
 
-namespace Waheed\FirebaseNotification\Facade;
+namespace Mowahed\FirebaseNotification\Facade;
 
 use Illuminate\Support\Facades\Facade;
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace Waheed\FirebaseNotification\Contracts;
+namespace Mowahed\FirebaseNotification\Contracts;
 
 interface FirebaseNotifiable
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace Waheed\FirebaseNotification;
+namespace Mowahed\FirebaseNotification;
 
 use Illuminate\Support\ServiceProvider;
 

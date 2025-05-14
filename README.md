@@ -16,7 +16,7 @@ php artisan vendor:publish --tag=firebase-config
 
 
 ```php
-use Waheed\FirebaseNotification\Facades\FirebaseNotification;
+use Mowahed\FirebaseNotification\Facades\FirebaseNotification;
 
 FirebaseNotification::sendToDevice('device_token', [
       'title' => 'Welcome!',
