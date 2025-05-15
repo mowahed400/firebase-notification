@@ -12,20 +12,22 @@
     "require": {
         "php": ">=8.0 <8.4",
         "laravel/framework": "^8.0|^9.0|^10.0|^11.0"
-        ],
-        "autoload": {
-            "psr-4": {
-                "Mowahed\\FirebaseNotification\\": "src/"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mowahed\\FirebaseNotification\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Mowahed\\FirebaseNotification\\FirebaseNotificationServiceProvider"
+            ],
+            "aliases": {
+                "FirebaseNotification": "Mowahed\\FirebaseNotification\\Facades\\FirebaseNotification"
             }
-        },
-        "extra": {
-            "laravel": {
-                "providers": [
-                    "Mowahed\\FirebaseNotification\\FirebaseNotificationServiceProvider"
-                ],
-                "aliases": {}
-            }
-        },
-        "minimum-stability": "dev",
-        "prefer-stable": true
-    }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
