@@ -16,18 +16,21 @@
     "autoload": {
         "psr-4": {
             "Mowahed\\FirebaseNotification\\": "src/"
+        },
+        "files": [
+            "src/Helpers/helpers.php"
+        ]
+    },  "extra": {
+    "laravel": {
+        "providers": [
+            "Mowahed\\FirebaseNotification\\FirebaseNotificationServiceProvider"
+        ],
+        "aliases": {
+            "FirebaseNotification": "Mowahed\\FirebaseNotification\\Facades\\FirebaseNotification"
         }
-    },
-    "extra": {
-        "laravel": {
-            "providers": [
-                "Mowahed\\FirebaseNotification\\FirebaseNotificationServiceProvider"
-            ],
-            "aliases": {
-                "FirebaseNotification": "Mowahed\\FirebaseNotification\\Facades\\FirebaseNotification"
-            }
-        }
-    },
+    }
+},
     "minimum-stability": "dev",
     "prefer-stable": true
 }
+

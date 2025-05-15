@@ -4,6 +4,8 @@ namespace Mowahed\FirebaseNotification\Services;
 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Mowahed\FirebaseNotification\Exceptions\FirebaseConfigurationException;
+use Mowahed\FirebaseNotification\Exceptions\FirebaseNotificationException;
 
 class FirebaseNotificationService
 {
