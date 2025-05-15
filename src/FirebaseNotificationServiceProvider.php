@@ -11,14 +11,12 @@ class FirebaseNotificationServiceProvider extends ServiceProvider
     {
         $this->publishes([
             __DIR__.'/../config/firebase.php' => config_path('firebase.php'),
-        ], 'firebase-config');
+        ]);
     }
 
     public function register()
     {
-        $this->mergeConfigFrom(
-            __DIR__.'/../config/firebase.php', 'firebase'
-        );
+        $this->mergeConfigFrom(__DIR__.'/../config/firebase.php', 'firebase');
 
         $this->app->singleton('firebase-notification', function ($app) {
             return new FirebaseNotificationService();
