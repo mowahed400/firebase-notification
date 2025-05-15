@@ -1,6 +1,6 @@
 <?php
 
-namespace Mowahed\FirebaseNotification\Services;
+namespace Mowahed\FirebaseNotification\Service;
 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;

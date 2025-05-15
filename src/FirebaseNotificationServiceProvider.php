@@ -3,7 +3,7 @@
 namespace Mowahed\FirebaseNotification;
 
 use Illuminate\Support\ServiceProvider;
-use Mowahed\FirebaseNotification\Services\FirebaseNotificationService;
+use Mowahed\FirebaseNotification\Service\FirebaseNotificationService;
 
 class FirebaseNotificationServiceProvider extends ServiceProvider
 {
