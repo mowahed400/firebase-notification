@@ -18,8 +18,9 @@ class FirebaseNotificationServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(
             __DIR__.'/config/firebase.php', 'firebase'
         );
-	$this->app->singleton('firebase-notification', function ($app) {
-        return new Service\FirebaseNotification();
-    });
+
+        $this->app->singleton('firebase-notification', function ($app) {
+            return new Service\FirebaseNotification();
+        });
     }
 }

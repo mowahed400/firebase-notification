@@ -1,6 +1,6 @@
 <?php
 
-namespace Mowahed\FirebaseNotification\Facade;
+namespace Mowahed\FirebaseNotification\Facades;
 
 use Illuminate\Support\Facades\Facade;
 
@@ -11,3 +11,4 @@ class FirebaseNotification extends Facade
         return 'firebase-notification';
     }
 }
+
