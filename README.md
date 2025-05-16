@@ -49,7 +49,18 @@ FirebaseNotification::subscribeToTopic(['device_token'], 'news');
 FirebaseNotification::unsubscribeFromTopic(['device_token'], 'news');
 ```
 
-### 6 Add This in .env
+## 6. Add this in logging.php
+
+```php
+
+ 'firebase' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/firebase.log'),
+            'level' => 'error',
+        ],
+
+```
+### 7 Add This in .env
 
 ```dotenv
 FIREBASE_PROJECT_ID=""
