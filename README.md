@@ -49,7 +49,7 @@ FirebaseNotification::subscribeToTopic(['device_token'], 'news');
 FirebaseNotification::unsubscribeFromTopic(['device_token'], 'news');
 ```
 
-### 6
+### 6 Add This in .env
 
 ```dotenv
 FIREBASE_PROJECT_ID=""
