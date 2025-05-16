@@ -17,9 +17,33 @@ conditions.
 1. Install via Composer:
 
 ```bash
-composer require mowahed/firebase-notification
+composer require mowahed/firebase-notification:^2.0
 
 php artisan vendor:publish --tag=firebase-config
+
+```
+
+### Add This in .env
+
+```dotenv
+FIREBASE_PROJECT_ID="your-project-id"
+FIREBASE_CREDENTIALS="storage/app/firebase/service-account-key.json"
+FIREBASE_LOGGING_ENABLED="true"
+FIREBASE_LOGGING_CHANNEL="firebase"
+```
+
+## Add this in logging.php
+
+```php
+
+ 'channels' => [
+    'firebase' => [
+        'driver' => 'single',
+        'path' => storage_path('logs/firebase.log'),
+        'level' => 'error',
+    ],
+],
+
 ```
 
 ## 2. Send Notification to Device
@@ -80,26 +104,5 @@ $response = FirebaseNotification::unsubscribeFromTopic(
 );
 ```
 
-## 7. Add this in logging.php
 
-```php
-
- 'channels' => [
-    'firebase' => [
-        'driver' => 'single',
-        'path' => storage_path('logs/firebase.log'),
-        'level' => 'error',
-    ],
-],
-
-```
-
-### 7 Add This in .env
-
-```dotenv
-FIREBASE_PROJECT_ID="your-project-id"
-FIREBASE_CREDENTIALS="storage/app/firebase/service-account-key.json"
-FIREBASE_LOGGING_ENABLED="true"
-FIREBASE_LOGGING_CHANNEL="firebase"
-```
 
