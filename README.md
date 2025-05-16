@@ -14,7 +14,6 @@ php artisan vendor:publish --tag=firebase-config
 
 ## 2. Send Notification to Device
 
-
 ```php
 use Mowahed\FirebaseNotification\Facades\FirebaseNotification;
 
@@ -38,11 +37,24 @@ FirebaseNotification::sendToTopic('news,' [
 ```
 
 ## 4. Subscribe Device to Topic
+
 ```php
-- FirebaseNotification::subscribeToTopic('device_token', 'news');
+FirebaseNotification::subscribeToTopic(['device_token'], 'news');
+
 ```
 
 ## 5. Unsubscribe Device from Topic
+
 ```php
-- FirebaseNotification::unsubscribeFromTopic('device_token', 'news');
+FirebaseNotification::unsubscribeFromTopic(['device_token'], 'news');
 ```
+
+### 6
+
+```dotenv
+FIREBASE_PROJECT_ID=""
+FIREBASE_CREDENTIALS=storage/app/firebase/service-account-key.json
+FIREBASE_LOGGING_ENABLED=""
+FIREBASE_LOGGING_CHANNEL=""
+```
+

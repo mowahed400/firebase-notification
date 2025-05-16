@@ -13,197 +13,313 @@ class FirebaseNotificationService
     protected string $projectId;
     protected string $keyPath;
     protected string $serverKey;
+    protected array $defaultConfig;
 
     public function __construct()
     {
+        $this->validateConfig();
+
         $this->projectId = config('firebase.project_id');
         $this->keyPath = config('firebase.service_account_key_path');
         $this->url = "https://fcm.googleapis.com/v1/projects/{$this->projectId}/messages:send";
         $this->serverKey = '';
+        $this->defaultConfig = [
+            'sound' => 'default',
+            'open_with' => '',
+            'link' => '',
+            'priority' => 'high',
+            'time_to_live' => 3600,
+        ];
     }
 
-    public function send(string $fcm_token, array $notificationData): bool|array
+    protected function validateConfig(): void
     {
-        $validation = Validator::make($notificationData, [
-            'title' => 'required|string',
-            'body' => 'required|string',
-            'link' => 'nullable|url',
-            'sound' => 'nullable|string',
-            'open_with' => 'nullable|string',
-        ]);
+        if (empty(config('firebase.project_id')) || empty(config('firebase.service_account_key_path'))) {
+            throw new FirebaseConfigurationException('Firebase configuration is incomplete. Please check your config file.');
+        }
+    }
 
-        if ($validation->fails()) {
-            Log::channel('firebase')->error('Validation failed', $validation->errors()->toArray());
-            return false;
+    public function sendToDevice(string $fcmToken, array $notificationData): array
+    {
+        $this->validateNotificationData($notificationData);
+        $this->serverKey = $this->getToken();
+        $this->validateServerKey();
+
+        $message = [
+            "token" => $fcmToken,
+            "notification" => [
+                "title" => $notificationData['title'],
+                "body" => $notificationData['body'],
+            ],
+            'data' => $this->buildDataPayload($notificationData),
+            'android' => $this->buildAndroidPayload($notificationData),
+            'apns' => $this->buildApnsPayload($notificationData),
+            'webpush' => $this->buildWebPushPayload($notificationData),
+            'fcm_options' => $this->buildFcmOptions($notificationData),
+        ];
+
+        if (isset($notificationData['image'])) {
+            $message['notification']['image'] = $notificationData['image'];
+        }
+
+        return $this->sendRequest(['message' => $message]);
+    }
+
+    public function sendToTopic(string $topic, array $notificationData): array
+    {
+        $this->validateNotificationData($notificationData);
+        $this->serverKey = $this->getToken();
+        $this->validateServerKey();
+
+        $message = [
+            'topic' => $topic,
+            'notification' => [
+                'title' => $notificationData['title'],
+                'body' => $notificationData['body'],
+            ],
+            'data' => $this->buildDataPayload($notificationData),
+            'android' => $this->buildAndroidPayload($notificationData),
+            'apns' => $this->buildApnsPayload($notificationData),
+        ];
+
+        if (isset($notificationData['image'])) {
+            $message['notification']['image'] = $notificationData['image'];
+        }
+
+        return $this->sendRequest(['message' => $message]);
+    }
+
+    public function sendToCondition(string $condition, array $notificationData): array
+    {
+        $this->validateNotificationData($notificationData);
+        $this->serverKey = $this->getToken();
+        $this->validateServerKey();
+
+        $message = [
+            'condition' => $condition,
+            'notification' => [
+                'title' => $notificationData['title'],
+                'body' => $notificationData['body'],
+            ],
+            'data' => $this->buildDataPayload($notificationData),
+        ];
+
+        return $this->sendRequest(['message' => $message]);
+    }
+
+    public function subscribeToTopic(array $fcmTokens, string $topic): array
+    {
+        if (empty($fcmTokens)) {
+            throw new FirebaseNotificationException('No FCM tokens provided for subscription.');
         }
 
         $this->serverKey = $this->getToken();
-        if (!$this->serverKey) {
-            Log::channel('firebase')->error('FCM Error: Missing access token');
-            return false;
-        }
+        $this->validateServerKey();
 
         $data = [
-            'message' => [
-                "token" => $fcm_token,
-                "notification" => [
-                    "title" => $notificationData['title'],
-                    "body" => $notificationData['body'],
-                ],
-                'data' => [
-                    'title' => $notificationData['title'],
-                    'body' => $notificationData['body'],
-                    'created_at' => now(),
-                    'open_with' => $notificationData['open_with'] ?? '',
-                    'link' => $notificationData['link'] ?? '',
-                    'sound' => $notificationData['sound'] ?? 'default',
-                ],
-                'android' => [
-                    'notification' => [
-                        'sound' => $notificationData['sound'] ?? 'default',
-                        'click_action' => $notificationData['link'] ?? '',
-                    ],
-                ],
-                'apns' => [
-                    'payload' => [
-                        'aps' => [
-                            'sound' => $notificationData['sound'] ?? 'default',
-                            'link' => $notificationData['link'] ?? '',
-                        ]
-                    ]
-                ]
-            ]
+            'to' => "/topics/$topic",
+            'registration_tokens' => is_array($fcmTokens) ? $fcmTokens : [$fcmTokens],
         ];
-
-        return $this->sendCurlRequest($data);
-    }
-
-    public function sendToTopic(string $topic, array $notificationData): bool|array
-    {
-        $validation = Validator::make($notificationData, [
-            'title' => 'required|string',
-            'body' => 'required|string',
-            'link' => 'nullable|url',
-            'sound' => 'nullable|string',
-            'open_with' => 'nullable|string',
-        ]);
-
-        if ($validation->fails()) {
-            Log::channel('firebase')->error('Validation failed', $validation->errors()->toArray());
-            return false;
-        }
-
-        $this->serverKey = $this->getTopicToken();
-        if (!$this->serverKey) {
-            Log::channel('firebase')->error('FCM Error: Missing access token');
-            return false;
-        }
-
-        $payload = [
-            'message' => [
-                'topic' => $topic,
-                'notification' => [
-                    'title' => $notificationData['title'],
-                    'body' => $notificationData['body'],
-                ],
-                'data' => [
-                    'title' => $notificationData['title'],
-                    'body' => $notificationData['body'],
-                    'created_at' => now(),
-                    'open_with' => $notificationData['open_with'] ?? '',
-                    'link' => $notificationData['link'] ?? '',
-                    'sound' => $notificationData['sound'] ?? 'default',
-                ],
-            ]
-        ];
-
-        return $this->sendCurlRequest($payload);
-    }
-
-    public function getTopicToken(): ?string
-    {
-        try {
-            $keyFilePath = public_path('firebasekey_test.json');
-            if (!file_exists($keyFilePath)) {
-                Log::channel('firebase')->error('FCM Key File Missing');
-                return null;
-            }
-
-            $keyData = json_decode(file_get_contents($keyFilePath), true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                Log::channel('firebase')->error('FCM Key JSON Invalid');
-                return null;
-            }
-
-            $header = ['alg' => 'RS256', 'typ' => 'JWT'];
-            $now = time();
-            $claims = [
-                'iss' => $keyData['client_email'],
-                'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
-                'aud' => 'https://oauth2.googleapis.com/token',
-                'exp' => $now + 3600,
-                'iat' => $now
-            ];
-
-            $jwt = $this->generateJWT($header, $claims, $keyData['private_key']);
-            $response = $this->fetchAuthToken($jwt);
-
-            // Check if the response contains a valid access token
-            if (isset($response['access_token'])) {
-                return $response['access_token'];
-            } else {
-                Log::channel('firebase')->error('FCM Topic Token Error: Invalid token response', ['response' => $response]);
-                return null;
-            }
-        } catch (\Exception $e) {
-            Log::channel('firebase')->error('FCM Topic Token Error', ['error' => $e->getMessage()]);
-            return null;
-        }
-    }
-
-    protected function sendCurlRequest(array $payload): array|bool
-    {
-        $encodedData = json_encode($payload);
 
         $headers = [
             'Authorization: Bearer ' . $this->serverKey,
             'Content-Type: application/json',
         ];
 
+        return $this->sendCurlRequest(
+            'https://iid.googleapis.com/iid/v1:batchAdd',
+            $headers,
+            $data
+        );
+    }
+
+    public function unsubscribeFromTopic(array $fcmTokens, string $topic): array
+    {
+        if (empty($fcmTokens)) {
+            throw new FirebaseNotificationException('No FCM tokens provided for unsubscription.');
+        }
+
+        $this->serverKey = $this->getToken();
+        $this->validateServerKey();
+
+        $data = [
+            'to' => "/topics/$topic",
+            'registration_tokens' => is_array($fcmTokens) ? $fcmTokens : [$fcmTokens],
+        ];
+
+        $headers = [
+            'Authorization: Bearer ' . $this->serverKey,
+            'Content-Type: application/json',
+        ];
+
+        return $this->sendCurlRequest(
+            'https://iid.googleapis.com/iid/v1:batchRemove',
+            $headers,
+            $data
+        );
+    }
+
+    protected function validateNotificationData(array $notificationData): void
+    {
+        $validator = Validator::make($notificationData, [
+            'title' => 'required|string|max:255',
+            'body' => 'required|string',
+            'link' => 'nullable|url',
+            'sound' => 'nullable|string',
+            'open_with' => 'nullable|string|in:app,browser',
+            'image' => 'nullable|url',
+            'priority' => 'nullable|string|in:normal,high',
+            'time_to_live' => 'nullable|integer|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            Log::channel('firebase')->error('Validation failed', $validator->errors()->toArray());
+            throw new FirebaseNotificationException('Invalid notification data: ' . $validator->errors()->first());
+        }
+    }
+
+    protected function validateServerKey(): void
+    {
+        if (empty($this->serverKey)) {
+            Log::channel('firebase')->error('FCM Error: Missing access token');
+            throw new FirebaseNotificationException('Missing Firebase access token');
+        }
+    }
+
+    protected function buildDataPayload(array $notificationData): array
+    {
+        return [
+            'title' => $notificationData['title'],
+            'body' => $notificationData['body'],
+            'created_at' => now()->toDateTimeString(),
+            'open_with' => $notificationData['open_with'] ?? $this->defaultConfig['open_with'],
+            'link' => $notificationData['link'] ?? $this->defaultConfig['link'],
+            'sound' => $notificationData['sound'] ?? $this->defaultConfig['sound'],
+        ];
+    }
+
+    protected function buildAndroidPayload(array $notificationData): array
+    {
+        return [
+            'notification' => [
+                'sound' => $notificationData['sound'] ?? $this->defaultConfig['sound'],
+                'click_action' => $notificationData['link'] ?? $this->defaultConfig['link'],
+            ],
+            'priority' => $notificationData['priority'] ?? $this->defaultConfig['priority'],
+            'ttl' => $notificationData['time_to_live'] ?? $this->defaultConfig['time_to_live'] . 's',
+        ];
+    }
+
+    protected function buildApnsPayload(array $notificationData): array
+    {
+        return [
+            'payload' => [
+                'aps' => [
+                    'sound' => $notificationData['sound'] ?? $this->defaultConfig['sound'],
+                    'link' => $notificationData['link'] ?? $this->defaultConfig['link'],
+                    'badge' => $notificationData['badge'] ?? 1,
+                ]
+            ],
+            'headers' => [
+                'apns-priority' => $notificationData['priority'] === 'high' ? '10' : '5',
+            ]
+        ];
+    }
+
+    protected function buildWebPushPayload(array $notificationData): array
+    {
+        return [
+            'notification' => [
+                'icon' => $notificationData['icon'] ?? '',
+                'badge' => $notificationData['badge'] ?? '',
+                'data' => [
+                    'link' => $notificationData['link'] ?? $this->defaultConfig['link'],
+                ]
+            ]
+        ];
+    }
+
+    protected function buildFcmOptions(array $notificationData): array
+    {
+        return [
+            'analytics_label' => $notificationData['analytics_label'] ?? '',
+            'link' => $notificationData['link'] ?? $this->defaultConfig['link'],
+        ];
+    }
+
+    protected function sendRequest(array $payload): array
+    {
+        try {
+            $response = $this->sendCurlRequest($this->url, [
+                'Authorization: Bearer ' . $this->serverKey,
+                'Content-Type: application/json',
+            ], $payload);
+
+            if (isset($response['error'])) {
+                Log::channel('firebase')->error('FCM Error Response', $response);
+                throw new FirebaseNotificationException($response['error']['message'] ?? 'Unknown FCM error');
+            }
+
+            return $response;
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('FCM Request Failed', [
+                'error' => $e->getMessage(),
+                'payload' => $payload
+            ]);
+            throw new FirebaseNotificationException('Failed to send FCM message: ' . $e->getMessage());
+        }
+    }
+
+    protected function sendCurlRequest(string $url, array $headers, array $data): array
+    {
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL => $this->url,
+            CURLOPT_URL => $url,
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_CAINFO => storage_path('certs/cacert.pem'),
-            CURLOPT_POSTFIELDS => $encodedData,
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_TIMEOUT => 30,
         ]);
 
-        $result = curl_exec($ch);
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-        if ($result === false) {
-            Log::channel('firebase')->error('FCM CURL Error', ['error' => curl_error($ch)]);
-            curl_close($ch);
-            return false;
+        if ($response === false) {
+            Log::channel('firebase')->error('FCM CURL Error', ['error' => $error]);
+            throw new FirebaseNotificationException('CURL request failed: ' . $error);
         }
 
-        curl_close($ch);
-        return json_decode($result, true);
+        $decodedResponse = json_decode($response, true) ?? [];
+
+        if ($httpCode >= 400) {
+            Log::channel('firebase')->error('FCM HTTP Error', [
+                'code' => $httpCode,
+                'response' => $decodedResponse
+            ]);
+            throw new FirebaseNotificationException(
+                $decodedResponse['error']['message'] ?? "FCM request failed with HTTP code $httpCode"
+            );
+        }
+
+        return $decodedResponse;
     }
 
-    protected function getToken(): ?string
+    protected function getToken(): string
     {
         if (!file_exists($this->keyPath)) {
-            Log::channel('firebase')->error('FCM Key File Missing');
-            return null;
+            Log::channel('firebase')->error('FCM Key File Missing', ['path' => $this->keyPath]);
+            throw new FirebaseConfigurationException('Firebase service account key file not found');
         }
 
         $keyData = json_decode(file_get_contents($this->keyPath), true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            Log::channel('firebase')->error('FCM Key JSON Invalid');
-            return null;
+            Log::channel('firebase')->error('FCM Key JSON Invalid', ['path' => $this->keyPath]);
+            throw new FirebaseConfigurationException('Invalid Firebase service account key JSON');
         }
 
         $now = time();
@@ -218,7 +334,12 @@ class FirebaseNotificationService
         $jwt = $this->generateJWT(['alg' => 'RS256', 'typ' => 'JWT'], $claims, $keyData['private_key']);
         $response = $this->fetchAuthToken($jwt);
 
-        return $response['access_token'] ?? null;
+        if (empty($response['access_token'])) {
+            Log::channel('firebase')->error('FCM Token Error', ['response' => $response]);
+            throw new FirebaseNotificationException('Failed to obtain Firebase access token');
+        }
+
+        return $response['access_token'];
     }
 
     protected function generateJWT(array $header, array $claims, string $privateKey): string
@@ -227,7 +348,10 @@ class FirebaseNotificationService
         $base64UrlClaims = $this->base64UrlEncode(json_encode($claims));
         $signatureInput = $base64UrlHeader . '.' . $base64UrlClaims;
 
-        openssl_sign($signatureInput, $signature, $privateKey, 'SHA256');
+        $signature = '';
+        if (!openssl_sign($signatureInput, $signature, $privateKey, 'SHA256')) {
+            throw new FirebaseConfigurationException('Failed to generate JWT signature');
+        }
 
         return $signatureInput . '.' . $this->base64UrlEncode($signature);
     }
@@ -244,15 +368,18 @@ class FirebaseNotificationService
             ]),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+            CURLOPT_TIMEOUT => 10,
         ]);
 
         $response = curl_exec($ch);
+        $error = curl_error($ch);
+        curl_close($ch);
+
         if ($response === false) {
-            Log::channel('firebase')->error('FCM OAuth CURL Error', ['error' => curl_error($ch)]);
-            return [];
+            Log::channel('firebase')->error('FCM OAuth CURL Error', ['error' => $error]);
+            throw new FirebaseNotificationException('Failed to fetch auth token: ' . $error);
         }
 
-        curl_close($ch);
         return json_decode($response, true) ?? [];
     }
 
