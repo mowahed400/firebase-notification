@@ -3,6 +3,7 @@
 namespace Mowahed\FirebaseNotification\Service;
 
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Mowahed\FirebaseNotification\Exceptions\FirebaseConfigurationException;
 use Mowahed\FirebaseNotification\Exceptions\FirebaseNotificationException;
@@ -52,10 +53,6 @@ class FirebaseNotificationService
                 "body" => $notificationData['body'],
             ],
             'data' => $this->buildDataPayload($notificationData),
-            'android' => $this->buildAndroidPayload($notificationData),
-            'apns' => $this->buildApnsPayload($notificationData),
-            'webpush' => $this->buildWebPushPayload($notificationData),
-            'fcm_options' => $this->buildFcmOptions($notificationData),
         ];
 
         if (isset($notificationData['image'])) {
@@ -65,30 +62,40 @@ class FirebaseNotificationService
         return $this->sendRequest(['message' => $message]);
     }
 
-    public function sendToTopic(string $topic, array $notificationData): array
+    public function sendToTopic(string $topic, array $data): array|null
     {
-        $this->validateNotificationData($notificationData);
-        $this->serverKey = $this->getToken();
-        $this->validateServerKey();
+        $accessToken = $this->getTopicToken();
 
-        $message = [
-            'topic' => $topic,
-            'notification' => [
-                'title' => $notificationData['title'],
-                'body' => $notificationData['body'],
-            ],
-            'data' => $this->buildDataPayload($notificationData),
-            'android' => $this->buildAndroidPayload($notificationData),
-            'apns' => $this->buildApnsPayload($notificationData),
-        ];
-
-        if (isset($notificationData['image'])) {
-            $message['notification']['image'] = $notificationData['image'];
+        if (!$accessToken) {
+            return null;
         }
 
-        return $this->sendRequest(['message' => $message]);
-    }
+        $payload = [
+            'message' => [
+                'topic' => $topic,
+                'notification' => [
+                    'title' => $data['title'] ?? '',
+                    'body' => $data['body'] ?? '',
+                ],
+                'data' => $data['data'] ?? [],
+                'webpush' => [
+                    'notification' => [
+                        'icon' => $data['icon'] ?? '',
+                        'click_action' => $data['link'] ?? '',
+                        'sound' => $data['sound'] ?? 'default',
+                    ]
+                ]
+            ]
+        ];
 
+        $url = 'https://fcm.googleapis.com/v1/projects/' . $this->projectId . '/messages:send';
+
+        $response = Http::withToken($accessToken)
+            ->withHeaders(['Content-Type' => 'application/json'])
+            ->post($url, $payload);
+
+        return $response->json();
+    }
     public function sendToCondition(string $condition, array $notificationData): array
     {
         $this->validateNotificationData($notificationData);
@@ -108,58 +115,48 @@ class FirebaseNotificationService
     }
 
 
-    public function subscribeToTopic(array $fcmTokens, string $topic): array
+    public function subscribeToTopic(array $fcmTokens, string $topic): array|null
     {
-        if (empty($fcmTokens)) {
-            throw new FirebaseNotificationException('No FCM tokens provided for subscription.');
+        $accessToken = $this->getTopicToken();
+
+        if (!$accessToken) {
+            return null;
         }
 
-        $this->serverKey = $this->getToken();
-        $this->validateServerKey();
-
-        $data = [
-            'to' => "/topics/$topic",
-            'registration_tokens' => is_array($fcmTokens) ? $fcmTokens : [$fcmTokens],
+        $url = "https://iid.googleapis.com/v1:batchAdd";
+        $payload = [
+            'to' => "/topics/{$topic}",
+            'registration_tokens' => $fcmTokens,
         ];
 
-        $headers = [
-            'Authorization: Bearer ' . $this->serverKey,
-            'Content-Type: application/json',
-        ];
+        $response = Http::withToken($accessToken)
+            ->withHeaders(['Content-Type' => 'application/json'])
+            ->post($url, $payload);
 
-        return $this->sendCurlRequest(
-            'https://iid.googleapis.com/iid/v1:batchAdd',
-            $headers,
-            $data
-        );
+        return $response->json();
     }
 
-    public function unsubscribeFromTopic(array $fcmTokens, string $topic): array
+
+    public function unsubscribeFromTopic(array $fcmTokens, string $topic): array|null
     {
-        if (empty($fcmTokens)) {
-            throw new FirebaseNotificationException('No FCM tokens provided for unsubscription.');
+        $accessToken = $this->getTopicToken();
+
+        if (!$accessToken) {
+            return null;
         }
 
-        $this->serverKey = $this->getToken();
-        $this->validateServerKey();
-
-        $data = [
-            'to' => "/topics/$topic",
-            'registration_tokens' => is_array($fcmTokens) ? $fcmTokens : [$fcmTokens],
+        $url = "https://iid.googleapis.com/v1:batchRemove";
+        $payload = [
+            'to' => "/topics/{$topic}",
+            'registration_tokens' => $fcmTokens,
         ];
 
-        $headers = [
-            'Authorization: Bearer ' . $this->serverKey,
-            'Content-Type: application/json',
-        ];
+        $response = Http::withToken($accessToken)
+            ->withHeaders(['Content-Type' => 'application/json'])
+            ->post($url, $payload);
 
-        return $this->sendCurlRequest(
-            'https://iid.googleapis.com/iid/v1:batchRemove',
-            $headers,
-            $data
-        );
+        return $response->json();
     }
-
     protected function validateNotificationData(array $notificationData): void
     {
         $validator = Validator::make($notificationData, [
@@ -271,6 +268,45 @@ class FirebaseNotificationService
         }
     }
 
+    public function getTopicToken()
+    {
+        try {
+            // Use the configured key path instead of hardcoded path
+            if (!file_exists($this->keyPath)) {
+                Log::channel('firebase')->error('FCM Key File Missing');
+                return null;
+            }
+
+            $keyData = json_decode(file_get_contents($this->keyPath), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::channel('firebase')->error('FCM Key JSON Invalid');
+                return null;
+            }
+
+            $header = ['alg' => 'RS256', 'typ' => 'JWT'];
+            $now = time();
+            $claims = [
+                'iss' => $keyData['client_email'],
+                'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
+                'aud' => 'https://oauth2.googleapis.com/token',
+                'exp' => $now + 3600,
+                'iat' => $now
+            ];
+
+            $jwt = $this->generateJWT($header, $claims, $keyData['private_key']);
+            $response = $this->fetchAuthToken($jwt);
+
+            if (isset($response['access_token'])) {
+                return $response['access_token'];
+            } else {
+                Log::channel('firebase')->error('FCM Topic Token Error: Invalid token response', ['response' => $response]);
+                return null;
+            }
+        } catch (\Exception $e) {
+            Log::channel('firebase')->error('FCM Topic Token Error', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
     protected function sendCurlRequest(string $url, array $headers, array $data): array
     {
         $ch = curl_init();
@@ -279,7 +315,7 @@ class FirebaseNotificationService
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_CAINFO => storage_path('certs/cacert.pem'),
             CURLOPT_POSTFIELDS => json_encode($data),
             CURLOPT_TIMEOUT => 30,
