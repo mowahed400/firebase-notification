@@ -107,6 +107,7 @@ class FirebaseNotificationService
         return $this->sendRequest(['message' => $message]);
     }
 
+
     public function subscribeToTopic(array $fcmTokens, string $topic): array
     {
         if (empty($fcmTokens)) {
