@@ -27,7 +27,7 @@ php artisan vendor:publish --tag=firebase-config
 
 ```dotenv
 FIREBASE_PROJECT_ID="your-project-id"
-FIREBASE_CREDENTIALS="storage/app/firebase/service-account-key.json"
+FIREBASE_CREDENTIALS="app/firebase/service-account-key.json"
 FIREBASE_LOGGING_ENABLED="true"
 FIREBASE_LOGGING_CHANNEL="firebase"
 ```
