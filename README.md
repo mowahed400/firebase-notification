@@ -17,7 +17,7 @@ conditions.
 1. Install via Composer:
 
 ```bash
-composer require mowahed/firebase-notification:^2.0.1
+composer require mowahed/firebase-notification:^2.0.2
 
 php artisan vendor:publish --tag=firebase-config
 
