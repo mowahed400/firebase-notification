@@ -3,7 +3,7 @@
     "description": "Laravel package for Firebase Cloud Messaging",
     "type": "library",
     "license": "MIT",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "authors": [
         {
             "name": "Mohamed Waheed",
